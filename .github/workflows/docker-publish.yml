@@ -54,7 +54,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/firefox-browser
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.repository }}
             ghcr.io/${{ github.repository }}
 
       # 步骤 7: 构建并推送到两个镜像仓库
