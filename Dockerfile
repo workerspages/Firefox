@@ -8,29 +8,24 @@ USER root
 RUN apt-get update && \
     apt-get install -y \
     fonts-wqy-zenhei \
-    fonts-noto-cjk \
-    wget && \
+    fonts-noto-cjk && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 步骤 4: 下载并安装 Firefox 页面自动刷新插件
-RUN wget https://addons.mozilla.org/firefox/downloads/file/4207985/easy_auto_refresh-2.6.2.xpi -O /tmp/auto-refresh.xpi && \
-    mkdir -p /usr/lib/firefox/browser/extensions/ && \
-    mv /tmp/auto-refresh.xpi /usr/lib/firefox/browser/extensions/easy-auto-refresh@my-addon.xpi
+# --- 核心修改：使用 Firefox Policy Engine 安装插件 ---
+# 步骤 4: 创建 Firefox 的策略目录
+# 这是 Firefox 查找策略文件的官方路径
+RUN mkdir -p /usr/lib/firefox/distribution/
 
-# --- 以下是核心修改 ---
+# 步骤 5: 复制我们定义好的 policies.json 文件到该目录
+COPY config/policies.json /usr/lib/firefox/distribution/
 
-# 步骤 5: 复制我们自定义的启动脚本到镜像的 VNC 启动目录
-# 这个目录下的脚本会在 VNC 服务启动后自动执行
+# --- 核心修改：使用新的启动脚本 ---
+# 步骤 6: 复制我们增强版的启动脚本到镜像的 VNC 启动目录
 COPY launch-firefox.sh /dockerstartup/vnc/xstartup.d/
 
-# 步骤 6: 确保我们的脚本有执行权限
+# 步骤 7: 确保我们的脚本有执行权限
 RUN chmod +x /dockerstartup/vnc/xstartup.d/launch-firefox.sh
 
-# 步骤 7: 切换回默认用户
+# 步骤 8: 切换回默认用户
 USER 1000
-
-# 步骤 8: 移除自定义的 CMD
-# 我们不再需要自定义 CMD。镜像将回退使用 accetto 基础镜像的默认 CMD，
-# 它会正确地在前台运行 VNC 服务，保持容器存活。
-# (这里什么都不用写，即为移除)
