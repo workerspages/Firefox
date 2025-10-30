@@ -12,20 +12,25 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# --- 核心修改：使用 Firefox Policy Engine 安装插件 ---
-# 步骤 4: 创建 Firefox 的策略目录
-# 这是 Firefox 查找策略文件的官方路径
+# 步骤 4: 创建 Firefox 的策略目录并复制策略文件
 RUN mkdir -p /usr/lib/firefox/distribution/
-
-# 步骤 5: 复制我们定义好的 policies.json 文件到该目录
 COPY config/policies.json /usr/lib/firefox/distribution/
 
-# --- 核心修改：使用新的启动脚本 ---
-# 步骤 6: 复制我们增强版的启动脚本到镜像的 VNC 启动目录
+# 步骤 5: 复制 Firefox 启动脚本并赋予权限
 COPY launch-firefox.sh /dockerstartup/vnc/xstartup.d/
-
-# 步骤 7: 确保我们的脚本有执行权限
 RUN chmod +x /dockerstartup/vnc/xstartup.d/launch-firefox.sh
 
-# 步骤 8: 切换回默认用户
+# --- 核心修改：添加自定义 Entrypoint 来传递环境变量 ---
+# 步骤 6: 复制我们新的 entrypoint 脚本并赋予权限
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# 步骤 7: 切换回默认用户
 USER 1000
+
+# 步骤 8: 设置我们新的 Entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# 步骤 9: 指定 Entrypoint 执行完后要运行的默认命令
+# 这会执行基础镜像的原始启动脚本
+CMD ["/usr/bin/startup.sh"]
