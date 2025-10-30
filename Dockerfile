@@ -1,5 +1,5 @@
 # 步骤 1: 使用一个包含桌面环境和 VNC 的基础镜像
-FROM accetto/ubuntu-vnc-xfce-firefox-g3:latest
+FROM accetto/ubuntu-vnc-xfce-firefox-g3:20.04
 
 # 步骤 2: 切换到 root 用户以安装软件
 USER root
