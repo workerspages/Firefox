@@ -2,12 +2,14 @@ version: '3.8'
 
 services:
   firefox-browser:
-    build: .
-    container_name: my-firefox-container
+    image: ghcr.io/workerspages/firefox:main
+    container_name: Firefox
     ports:
-      - "6901:6901"  # Web 访问端口
-      - "5901:5901"  # VNC 客户端访问端口
+      - "6901:6901"   # Web VNC 访问端口 (http://localhost:6901)
+      - "5901:5901"   # 桌面 VNC 客户端访问端口
     environment:
-      - VNC_PW=password  # 设置您的VNC访问密码
-      - URL=https://gitee.com/login # 设置您希望 Firefox 启动时打开的网站
-    shm_size: '2g' # 增加共享内存大小，有助于浏览器稳定运行
+      - VNC_PW=your_strong_password_here   # 设置您的VNC远程访问密码
+      - URL=https://gitee.com
+      - WEBSITE_COOKIE_JSON={"name":"gitee-session-id","value":"在这里粘贴您的单行JSON格式Cookie","domain":".gitee.com","path":"/"}
+    shm_size: '2g'                   # 增加共享内存大小，对稳定运行浏览器至关重要
+    restart: unless-stopped
