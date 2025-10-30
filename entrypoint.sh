@@ -1,12 +1,18 @@
 #!/bin/bash
 set -e
 
-# 检查 URL 环境变量是否被设置
+# 创建 profile 脚本文件，确保 VNC 会话能获取到环境变量
+PROFILE_SCRIPT="/etc/profile.d/custom_env.sh"
+echo "#!/bin/sh" > $PROFILE_SCRIPT
+
+# 检查并写入 URL 环境变量
 if [ -n "$URL" ]; then
-  # 如果 URL 存在，则将其写入一个 profile 脚本中。
-  # /etc/profile.d/ 目录下的脚本会在所有用户登录时被自动执行，
-  # 这就确保了 VNC 会话能够获取到这个环境变量。
-  echo "export URL='${URL}'" > /etc/profile.d/custom_env.sh
+  echo "export URL='${URL}'" >> $PROFILE_SCRIPT
+fi
+
+# 检查并写入 Cookie JSON 环境变量
+if [ -n "$WEBSITE_COOKIE_JSON" ]; then
+  echo "export WEBSITE_COOKIE_JSON='${WEBSITE_COOKIE_JSON}'" >> $PROFILE_SCRIPT
 fi
 
 # 执行传递给此脚本的任何命令（即 Dockerfile 中的 CMD）
