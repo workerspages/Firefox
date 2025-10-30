@@ -18,12 +18,10 @@ jobs:
     # 定义作业的步骤
     steps:
       # 步骤 1: 检出代码
-      # 使用官方的 checkout action 来获取仓库的最新代码
       - name: Check out the repo
         uses: actions/checkout@v4
 
       # 步骤 2: 登录到 Docker Hub
-      # 使用我们存储在 GitHub Secrets 中的凭证
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -31,7 +29,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # 步骤 3: 登录到 GitHub Container Registry (ghcr.io)
-      # GITHUB_TOKEN 是 GitHub Actions 自动提供的，具有推送到本仓库 ghcr.io 的权限
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -39,9 +36,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 步骤 4: 提取 Docker 元数据
-      # 这个 action 会自动生成镜像的标签 (tag) 和标签 (label)
-      # 例如：latest, git-commit-sha 等
+      # --- 新增步骤在这里 ---
+      # 步骤 4: 设置 QEMU (用于模拟多平台架构，是 Buildx 的最佳实践)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # 步骤 5: 设置 Docker Buildx
+      # 这是解决问题的关键！它会创建一个使用 `docker-container` 驱动的 builder 实例，
+      # 这个驱动支持 GHA 缓存等高级功能。
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      # --- 新增步骤结束 ---
+
+      # 步骤 6: 提取 Docker 元数据
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -50,8 +57,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/firefox-browser
             ghcr.io/${{ github.repository }}
 
-      # 步骤 5: 构建并推送到两个镜像仓库
-      # 这个核心 action 会执行构建和推送操作
+      # 步骤 7: 构建并推送到两个镜像仓库
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -59,6 +65,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # 启用 build cache，可以显著加快后续构建速度
           cache-from: type=gha
           cache-to: type=gha,mode=max
