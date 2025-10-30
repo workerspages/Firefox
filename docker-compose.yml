@@ -5,11 +5,11 @@ services:
     image: ghcr.io/workerspages/firefox:main
     container_name: Firefox
     ports:
-      - "6901:6901"   # Web VNC 访问端口 (http://localhost:6901)
-      - "5901:5901"   # 桌面 VNC 客户端访问端口
+      - "6901:6901"                                   # Web VNC 访问端口 (http://localhost:6901)
+      - "5901:5901"                                   # 桌面 VNC 客户端访问端口
     environment:
-      - VNC_PW=your_strong_password_here   # 设置您的VNC远程访问密码
-      - URL=https://gitee.com
-      - WEBSITE_COOKIE_STRING=user_device_id=8ddcd850...huaban-page-setting={...}    # 将完整的 Cookie 字符串粘贴在这里 确保它是一整行，中间没有换行符
-    shm_size: '2g'                   # 增加共享内存大小，对稳定运行浏览器至关重要
+      - VNC_PW=your_strong_password_here              # 设置您的VNC远程访问密码
+      - URL=https://huaban.com/discovery              # 设置要打开的网站 URL，必须与 Cookie 的域名匹配
+      - WEBSITE_COOKIE_STRING=hb_MA-9F4J-269N-056L_...（这里粘贴您从花瓣网获取的完整Cookie）    # 将完整的 Cookie 字符串粘贴在这里 确保它是一整行，中间没有换行符
+    shm_size: '2g'                                    # 增加共享内存大小，对稳定运行浏览器至关重要
     restart: unless-stopped
