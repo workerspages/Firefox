@@ -32,5 +32,6 @@ USER 1000
 # 步骤 8: 设置我们新的 Entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-# 步骤 9: 指定 Entrypoint 执行完后要运行的默认命令
-CMD ["/usr/bin/startup.sh"]
+# 步骤 9: 【核心修改】指定 Entrypoint 执行完后要运行的默认命令
+# 将路径从 /usr/bin/startup.sh 修改为 /docker/startup.sh
+CMD ["/docker/startup.sh"]
