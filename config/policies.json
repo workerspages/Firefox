@@ -2,7 +2,7 @@
   "policies": {
     "Extensions": {
       "Install": [
-        "https://addons.mozilla.org/firefox/downloads/latest/easy-auto-refresh/addon-latest.xpi"
+        "https://addons.mozilla.org/firefox/downloads/latest/auto-refresh-page/addon-latest.xpi"
       ]
     }
   }
