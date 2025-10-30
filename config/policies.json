@@ -4,6 +4,11 @@
       "Install": [
         "https://addons.mozilla.org/firefox/downloads/latest/auto-refresh-page/addon-latest.xpi"
       ]
-    }
+    },
+    "Homepage": {
+      "URL": "about:blank",
+      "Locked": false
+    },
+    "NewTabPage": "blank"
   }
 }
