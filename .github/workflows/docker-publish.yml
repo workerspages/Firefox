@@ -1,5 +1,5 @@
 # 工作流的名称
-name: Docker Image CI
+name: Build and Push Docker Image
 
 # 触发工作流的事件
 on:
@@ -54,7 +54,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.repository }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
             ghcr.io/${{ github.repository }}
 
       # 步骤 7: 构建并推送到两个镜像仓库
