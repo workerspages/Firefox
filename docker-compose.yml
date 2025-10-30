@@ -10,6 +10,6 @@ services:
     environment:
       - VNC_PW=your_strong_password_here   # 设置您的VNC远程访问密码
       - URL=https://gitee.com
-      - WEBSITE_COOKIE_JSON={"name":"gitee-session-id","value":"在这里粘贴您的单行JSON格式Cookie","domain":".gitee.com","path":"/"}
+      - WEBSITE_COOKIE_STRING=user_device_id=8ddcd850...huaban-page-setting={...}    # 将完整的 Cookie 字符串粘贴在这里 确保它是一整行，中间没有换行符
     shm_size: '2g'                   # 增加共享内存大小，对稳定运行浏览器至关重要
     restart: unless-stopped
