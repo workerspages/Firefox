@@ -4,7 +4,7 @@ set -e
 LOG_FILE="/tmp/ff_launch.log"
 echo "=== Entrypoint Started at $(date) ===" > "$LOG_FILE"
 
-# --- 步骤 1: 设置环境变量 (此部分保持不变) ---
+# --- 步骤 1: 设置环境变量 ---
 ENV_FILE="/tmp/custom_env.sourceme"
 echo "#!/bin/bash" > "$ENV_FILE"
 
@@ -42,21 +42,17 @@ chmod 644 "$ENV_FILE"
     echo "Copied .Xauthority to headless user" >> "$LOG_FILE"
   fi
   
-  # 【核心修正】: 将所有 Profile 操作都以 headless 用户执行
-  # ----------------------------------------------------------------
+  # 以 headless 用户执行所有 Profile 相关操作
   su - headless -c '
     set -e
     LOG_FILE="/tmp/ff_launch.log"
     ENV_FILE="/tmp/custom_env.sourceme"
     
-    # 加载环境变量
     source "$ENV_FILE"
     echo "[headless] Environment variables loaded" >> "$LOG_FILE"
 
-    # 确保 .mozilla 目录存在
     mkdir -p /home/headless/.mozilla/firefox
     
-    # 创建 Firefox profile
     echo "[headless] Creating Firefox profile..." >> "$LOG_FILE"
     timeout 5 firefox --headless -no-remote >> "$LOG_FILE" 2>&1 &
     PROFILE_PID=$!
@@ -68,7 +64,6 @@ chmod 644 "$ENV_FILE"
     pkill -9 firefox 2>/dev/null || true
     sleep 1
     
-    # 查找 profile 目录
     PROFILE_DIR=$(find /home/headless/.mozilla/firefox -name "*.default-release" -o -name "*.default" 2>/dev/null | head -n 1)
     
     if [ -z "$PROFILE_DIR" ]; then
@@ -79,22 +74,17 @@ chmod 644 "$ENV_FILE"
     echo "[headless] ✓ Profile found: $PROFILE_DIR" >> "$LOG_FILE"
     COOKIE_DB_PATH="$PROFILE_DIR/cookies.sqlite"
     
-    # Cookie 注入逻辑
     if [ -n "$WEBSITE_COOKIE_B64" ] && [ -n "$URL" ]; then
       echo "[headless] Starting robust cookie injection..." >> "$LOG_FILE"
       
-      # 【关键改进】生成一个 SQL 脚本文件，而不是在循环中调用 sqlite3
       SQL_SCRIPT_FILE="/tmp/cookies.sql"
       
-      # 1. 如果数据库不存在，创建它
       if [ ! -f "$COOKIE_DB_PATH" ]; then
         echo "CREATE TABLE moz_cookies (id INTEGER PRIMARY KEY, name TEXT, value TEXT, host TEXT, path TEXT, expiry INTEGER, lastAccessed INTEGER, creationTime INTEGER, isSecure INTEGER, isHttpOnly INTEGER, inBrowserElement INTEGER, sameSite INTEGER);" > "$SQL_SCRIPT_FILE"
       else
-        # 否则，清空旧的 Bilibili Cookie
         echo "DELETE FROM moz_cookies WHERE host LIKE '\''%bilibili%'\'';" > "$SQL_SCRIPT_FILE"
       fi
 
-      # 2. 解码并准备注入语句
       WEBSITE_COOKIE_STRING=$(echo "$WEBSITE_COOKIE_B64" | base64 -d)
       COOKIE_DOMAIN=".bilibili.com"
       EXPIRY_TIME=$(($(date +%s) + 31536000))
@@ -106,41 +96,35 @@ chmod 644 "$ENV_FILE"
         
         COOKIE_NAME=$(echo "$cookie" | cut -d"=" -f1)
         COOKIE_VALUE_RAW=$(echo "$cookie" | cut -d"=" -f2-)
-        # 正确转义单引号，为 SQL VALUES 做准备
         COOKIE_VALUE_ESCAPED=$(echo "$COOKIE_VALUE_RAW" | sed "s/'/''/g")
         
-        # 3. 将 INSERT 语句追加到 SQL 脚本文件
         echo "INSERT INTO moz_cookies (name, value, host, path, expiry, creationTime, isSecure, isHttpOnly, inBrowserElement, sameSite) VALUES ('\''${COOKIE_NAME}'\'', '\''${COOKIE_VALUE_ESCAPED}'\'', '\''${COOKIE_DOMAIN}'\'', '\''/'\'', ${EXPIRY_TIME}, ${CREATION_TIME}000000, 1, 1, 0, 1);" >> "$SQL_SCRIPT_FILE"
         echo "  [headless]  - Prepared cookie: ${COOKIE_NAME}" >> "$LOG_FILE"
       done
       
-      # 4. 一次性执行整个 SQL 脚本
       if sqlite3 "$COOKIE_DB_PATH" < "$SQL_SCRIPT_FILE"; then
-         TOTAL=$(sqlite3 "$COOKIE_DB_PATH" "SELECT COUNT(*) FROM moz_cookies WHERE host LIKE '\''%bilibili%'\'';" 2>/dev/null)
-         echo "[headless] ✓ Cookie injection SUCCEEDED. Total cookies injected: $TOTAL" >> "$LOG_FILE"
+         # 【修正点】将查询语句放入变量，避免嵌套引用错误
+         COUNT_QUERY="SELECT COUNT(*) FROM moz_cookies WHERE host LIKE '%bilibili%';"
+         TOTAL=$(sqlite3 "$COOKIE_DB_PATH" "$COUNT_QUERY")
+         echo "[headless] ✓ Cookie injection SUCCEEDED. Total cookies injected: ${TOTAL:-0}" >> "$LOG_FILE"
       else
          echo "[headless] ✗ Cookie injection FAILED. Check logs for errors." >> "$LOG_FILE"
       fi
       
-      rm "$SQL_SCRIPT_FILE" # 清理临时文件
+      rm "$SQL_SCRIPT_FILE"
     fi
     
-    # 等待一下
     sleep 3
     
-    # 启动 Firefox
     echo "[headless] Launching Firefox..." >> "$LOG_FILE"
     if [ -n "$URL" ]; then
       echo "[headless] URL found: $URL. Launching with this URL." >> "$LOG_FILE"
-      # 使用 exec 可以让 firefox 进程替换 shell 进程，更干净
       exec firefox --new-window "$URL" >> "$LOG_FILE" 2>&1
     else
       echo "[headless] URL not set. Launching default page." >> "$LOG_FILE"
       exec firefox >> "$LOG_FILE" 2>&1
     fi
   '
-  # ----------------------------------------------------------------
-  
 ) &
 
 BACKGROUND_PID=$!
