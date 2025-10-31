@@ -18,4 +18,4 @@ chmod 644 "$ENV_FILE"
 
 # --- 步骤 2: 执行基础镜像的原始 Entrypoint ---
 # 将控制权交还给 accetto 镜像的原始启动脚本，让它完成所有后续工作
-exec /docker/entrypoint.sh
+exec /dockerstartup/startup.sh "$@"
