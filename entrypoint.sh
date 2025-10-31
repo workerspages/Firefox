@@ -25,29 +25,33 @@ chmod 644 "$ENV_FILE"
 (
   echo "=== Background task started at $(date) ===" >> "$LOG_FILE"
   
-  # 等待 VNC 和桌面环境完全启动
+  # 等待 VNC
   echo "Waiting for desktop environment (20 seconds)..." >> "$LOG_FILE"
   sleep 20
   
   export DISPLAY=:1
   echo "DISPLAY set to: $DISPLAY" >> "$LOG_FILE"
   
-  # 【关键修复】授权 headless 用户访问 X display
+  # 授权 X11 访问
   echo "Setting X11 permissions..." >> "$LOG_FILE"
-  xhost +local:headless >> "$LOG_FILE" 2>&1 || echo "xhost command failed (may be OK)" >> "$LOG_FILE"
+  xhost +local:headless >> "$LOG_FILE" 2>&1 || true
   
-  # 如果存在 .Xauthority，复制给 headless 用户
+  # 复制并设置 .Xauthority
   if [ -f /root/.Xauthority ]; then
     cp /root/.Xauthority /home/headless/.Xauthority
     chown headless:headless /home/headless/.Xauthority
-    echo "Copied .Xauthority to headless user" >> "$LOG_FILE"
+    echo "Copied .Xauthority" >> "$LOG_FILE"
   fi
   
   # 加载环境变量
   source "$ENV_FILE"
-  echo "Environment variables loaded" >> "$LOG_FILE"
   
-  # 创建 Firefox profile
+  # 【关键】先确保 .mozilla 目录属于 headless
+  mkdir -p /home/headless/.mozilla/firefox
+  chown -R headless:headless /home/headless/.mozilla
+  echo "Pre-created .mozilla directory with correct ownership" >> "$LOG_FILE"
+  
+  # 以 headless 用户创建 Firefox profile
   echo "Creating Firefox profile as headless user..." >> "$LOG_FILE"
   su - headless -c "timeout 10 firefox --headless" >> "$LOG_FILE" 2>&1 &
   PROFILE_PID=$!
@@ -55,6 +59,10 @@ chmod 644 "$ENV_FILE"
   kill -9 $PROFILE_PID 2>/dev/null || true
   pkill -9 firefox 2>/dev/null || true
   sleep 2
+  
+  # 再次确认权限（防止 root 创建了文件）
+  chown -R headless:headless /home/headless/.mozilla
+  echo "Confirmed .mozilla ownership" >> "$LOG_FILE"
   
   # 查找 profile
   PROFILE_DIR=$(find /home/headless/.mozilla/firefox -name "*.default-release" 2>/dev/null | head -n 1)
@@ -78,7 +86,7 @@ chmod 644 "$ENV_FILE"
         COOKIE_DOMAIN=".${HOSTNAME#www.}"
         echo "Target domain: $COOKIE_DOMAIN" >> "$LOG_FILE"
         
-        # 注入每个 Cookie
+        # 注入 Cookie
         echo "$WEBSITE_COOKIE_STRING" | tr ';' '\n' | while IFS= read -r cookie; do
           cookie=$(echo "$cookie" | sed 's/^[ \t]*//')
           [ -z "$cookie" ] && continue
@@ -99,28 +107,31 @@ chmod 644 "$ENV_FILE"
         
         TOTAL=$(sqlite3 "$COOKIE_DB_PATH" "SELECT COUNT(*) FROM moz_cookies WHERE host = '${COOKIE_DOMAIN}';" 2>/dev/null)
         echo "✓ Cookie injection completed: $TOTAL cookies for $COOKIE_DOMAIN" >> "$LOG_FILE"
+        
+        # 【关键】确保 Cookie 数据库属于 headless
+        chown headless:headless "$COOKIE_DB_PATH"
       fi
     fi
   fi
   
-  # 再次确认 X11 权限并启动 Firefox
+  # 最后一次确认所有权限
+  chown -R headless:headless /home/headless/.mozilla
+  
+  # 启动 Firefox
   sleep 3
   echo "Launching Firefox..." >> "$LOG_FILE"
   
-  # 设置 XAUTHORITY 环境变量
-  export XAUTHORITY=/home/headless/.Xauthority
-  
   if [ -n "$URL" ]; then
-    su - headless -c "DISPLAY=:1 XAUTHORITY=/home/headless/.Xauthority firefox --new-window '$URL'" >> "$LOG_FILE" 2>&1 &
+    su - headless -c "DISPLAY=:1 firefox --new-window '$URL'" >> "$LOG_FILE" 2>&1 &
     echo "✓ Firefox launched with URL: $URL" >> "$LOG_FILE"
   else
-    su - headless -c "DISPLAY=:1 XAUTHORITY=/home/headless/.Xauthority firefox" >> "$LOG_FILE" 2>&1 &
-    echo "✓ Firefox launched with default page" >> "$LOG_FILE"
+    su - headless -c "DISPLAY=:1 firefox" >> "$LOG_FILE" 2>&1 &
+    echo "✓ Firefox launched" >> "$LOG_FILE"
   fi
   
   sleep 3
   if pgrep -u headless firefox > /dev/null; then
-    echo "✓ Firefox process confirmed running" >> "$LOG_FILE"
+    echo "✓ Firefox process confirmed running as headless user" >> "$LOG_FILE"
   else
     echo "✗ WARNING: Firefox process not found" >> "$LOG_FILE"
   fi
@@ -132,5 +143,4 @@ BACKGROUND_PID=$!
 echo "Background task started with PID: $BACKGROUND_PID" >> "$LOG_FILE"
 echo "Starting VNC server..." >> "$LOG_FILE"
 
-# --- 步骤 3: 启动 VNC ---
 exec /dockerstartup/startup.sh "$@"
