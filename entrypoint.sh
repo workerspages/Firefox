@@ -19,22 +19,25 @@ if [ -n "$WEBSITE_COOKIE_STRING" ]; then
   echo "Cookie encoded (length: ${#WEBSITE_COOKIE_STRING})" >> "$LOG_FILE"
 fi
 
+# 【修正点】在 root 环境下预先计算好时间戳
+EXPIRY_TIME=$(($(date +%s) + 31536000))
+CREATION_TIME=$(date +%s)
+printf "export EXPIRY_TIME=%q\n" "$EXPIRY_TIME" >> "$ENV_FILE"
+printf "export CREATION_TIME=%q\n" "$CREATION_TIME" >> "$ENV_FILE"
+echo "Timestamps calculated and added to env file." >> "$LOG_FILE"
+
 chmod 644 "$ENV_FILE"
 
 # --- 步骤 2: 后台任务 - Firefox 配置和启动 ---
 (
   echo "=== Background task started at $(date) ===" >> "$LOG_FILE"
   
-  # 等待 VNC 和桌面环境完全启动
-  echo "Waiting for desktop environment (20 seconds)..." >> "$LOG_FILE"
-  sleep 20
+  sleep 20 # 等待桌面环境
   
   export DISPLAY=:1
   echo "DISPLAY set to: $DISPLAY" >> "$LOG_FILE"
   
-  # 授权 headless 用户访问 X11 display
-  echo "Setting X11 permissions..." >> "$LOG_FILE"
-  xhost +local:headless >> "$LOG_FILE" 2>&1 || echo "xhost command failed (may be OK)" >> "$LOG_FILE"
+  xhost +local:headless >> "$LOG_FILE" 2>&1 || echo "xhost command failed" >> "$LOG_FILE"
   
   if [ -f /root/.Xauthority ]; then
     cp /root/.Xauthority /home/headless/.Xauthority
@@ -54,13 +57,7 @@ chmod 644 "$ENV_FILE"
     mkdir -p /home/headless/.mozilla/firefox
     
     echo "[headless] Creating Firefox profile..." >> "$LOG_FILE"
-    timeout 5 firefox --headless -no-remote >> "$LOG_FILE" 2>&1 &
-    PROFILE_PID=$!
-    sleep 6
-    
-    if kill -0 $PROFILE_PID 2>/dev/null; then
-      kill -9 $PROFILE_PID 2>/dev/null || true
-    fi
+    timeout 8 firefox --headless -no-remote >> "$LOG_FILE" 2>&1 || true
     pkill -9 firefox 2>/dev/null || true
     sleep 1
     
@@ -87,8 +84,8 @@ chmod 644 "$ENV_FILE"
 
       WEBSITE_COOKIE_STRING=$(echo "$WEBSITE_COOKIE_B64" | base64 -d)
       COOKIE_DOMAIN=".bilibili.com"
-      EXPIRY_TIME=$(($(date +%s) + 31536000))
-      CREATION_TIME=$(date +%s)
+      
+      # 【修正点】不再在此处计算时间，直接使用从 env 文件加载的变量
 
       echo "$WEBSITE_COOKIE_STRING" | tr ";" "\n" | while IFS= read -r cookie; do
         cookie=$(echo "$cookie" | sed "s/^[ \t]*//; s/[ \t]*$//")
@@ -99,26 +96,24 @@ chmod 644 "$ENV_FILE"
         COOKIE_VALUE_ESCAPED=$(echo "$COOKIE_VALUE_RAW" | sed "s/'/''/g")
         
         echo "INSERT INTO moz_cookies (name, value, host, path, expiry, creationTime, isSecure, isHttpOnly, inBrowserElement, sameSite) VALUES ('\''${COOKIE_NAME}'\'', '\''${COOKIE_VALUE_ESCAPED}'\'', '\''${COOKIE_DOMAIN}'\'', '\''/'\'', ${EXPIRY_TIME}, ${CREATION_TIME}000000, 1, 1, 0, 1);" >> "$SQL_SCRIPT_FILE"
-        echo "  [headless]  - Prepared cookie: ${COOKIE_NAME}" >> "$LOG_FILE"
       done
       
       if sqlite3 "$COOKIE_DB_PATH" < "$SQL_SCRIPT_FILE"; then
-         # 【修正点】将查询语句放入变量，避免嵌套引用错误
-         COUNT_QUERY="SELECT COUNT(*) FROM moz_cookies WHERE host LIKE '%bilibili%';"
+         COUNT_QUERY="SELECT COUNT(*) FROM moz_cookies WHERE host LIKE '\''%bilibili%'\'';"
          TOTAL=$(sqlite3 "$COOKIE_DB_PATH" "$COUNT_QUERY")
          echo "[headless] ✓ Cookie injection SUCCEEDED. Total cookies injected: ${TOTAL:-0}" >> "$LOG_FILE"
       else
-         echo "[headless] ✗ Cookie injection FAILED. Check logs for errors." >> "$LOG_FILE"
+         echo "[headless] ✗ Cookie injection FAILED." >> "$LOG_FILE"
       fi
       
       rm "$SQL_SCRIPT_FILE"
     fi
     
-    sleep 3
+    sleep 2
     
     echo "[headless] Launching Firefox..." >> "$LOG_FILE"
     if [ -n "$URL" ]; then
-      echo "[headless] URL found: $URL. Launching with this URL." >> "$LOG_FILE"
+      echo "[headless] URL found: $URL. Launching..." >> "$LOG_FILE"
       exec firefox --new-window "$URL" >> "$LOG_FILE" 2>&1
     else
       echo "[headless] URL not set. Launching default page." >> "$LOG_FILE"
